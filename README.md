@@ -22,7 +22,7 @@ It is designed for practical benchmarking over time. This version assumes life-s
 Loop per round:
 1. Sample target profile (reasoning type, difficulty, task type) from policy.
 2. Sample source chunks from provided articles.
-3. Generate a question + gold answer grounded in source.
+3. Generate a question + ground truth answer grounded in source.
 4. Reject duplicates via novelty checks.
 5. Answer with the same endpoint.
 6. Evaluate with the same endpoint.

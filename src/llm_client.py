@@ -15,7 +15,7 @@ class LLMConfig:
 
 class OpenAICompatibleClient:
     def __init__(self, config: LLMConfig) -> None:
-
+        """Create an OpenAI-compatible client from config."""
         api_key = config.api_key or os.getenv("OPENAI_API_KEY", "")
         if not api_key:
             raise ValueError("Missing API key. Set config.endpoint.api_key or OPENAI_API_KEY.")
@@ -23,6 +23,7 @@ class OpenAICompatibleClient:
         self.client = OpenAI(api_key=api_key, base_url=config.base_url)
 
     def chat_text(self, system_prompt: str, user_prompt: str, temperature: float | None = None) -> str:
+        """Send a chat completion request and return the text response."""
         completion = self.client.chat.completions.create(
             model=self.config.model,
             temperature=self.config.temperature if temperature is None else temperature,
@@ -35,6 +36,7 @@ class OpenAICompatibleClient:
         return completion.choices[0].message.content or ""
 
     def chat_json(self, system_prompt: str, user_prompt: str, temperature: float | None = None) -> dict[str, Any]:
+        """Send a chat completion request and parse JSON from the response."""
         raw = self.chat_text(system_prompt, user_prompt, temperature=temperature)
         try:
             return json.loads(raw)
@@ -44,6 +46,7 @@ class OpenAICompatibleClient:
 
 
 def _extract_json(raw: str) -> str:
+    """Extract a JSON object substring from a raw model response."""
     text = raw.strip()
     if text.startswith("```"):
         text = text.strip("`")

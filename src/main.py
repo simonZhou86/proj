@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import logging
 import uuid
 from typing import Any
 
@@ -20,11 +21,15 @@ from .storage import JsonlStore
 
 
 def load_config(path: str) -> dict[str, Any]:
+    """Load a YAML configuration file into a dictionary."""
     with open(path, "r", encoding="utf-8") as handle:
         return yaml.safe_load(handle)
 
 
 def run(config: dict[str, Any]) -> dict[str, Any]:
+    """Run the benchmark generation loop and return a run summary."""
+    logger = logging.getLogger(__name__)
+    logger.info("Starting run with config.")
     endpoint = config["endpoint"]
     generation_cfg = config["generation"]
     run_cfg = config["run"]
@@ -63,6 +68,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         seed=run_cfg.get("seed"),
     )
     policy.replay(history)
+    logger.info("Loaded %d historical records.", len(history))
 
     rounds = int(run_cfg["rounds"])
     max_attempts = int(run_cfg.get("max_generation_attempts", 4))
@@ -89,6 +95,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
     ]
 
     for round_number in range(1, rounds + 1):
+        logger.info("Round %d/%d starting.", round_number, rounds)
         batch_records: list[dict[str, Any]] = []
         if round_number == 1:
             difficulty_filter = {"1"}
@@ -106,6 +113,12 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         )
 
         for task_type, reasoning, difficulty in selected_buckets:
+            logger.info(
+                "Target bucket: task_type=%s reasoning=%s difficulty=%s",
+                task_type,
+                reasoning,
+                difficulty,
+            )
             target = {
                 "task_type": task_type,
                 "reasoning_type": reasoning,
@@ -115,7 +128,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             generated: dict[str, Any] | None = None
             novelty_info: dict[str, Any] = {"method": "not_run"}
 
-            for _ in range(max_attempts):
+            for attempt in range(1, max_attempts + 1):
                 generated = generator.generate(
                     target=target,
                     recent_questions=[row.get("question", "") for row in history],
@@ -124,6 +137,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
                 )
                 question = str(generated.get("question", "")).strip()
                 if not question:
+                    logger.warning("Empty question generated (attempt %d/%d).", attempt, max_attempts)
                     generated = None
                     continue
 
@@ -135,11 +149,14 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
                     llm_window=llm_window,
                 )
                 if novel:
+                    logger.info("Accepted novel question on attempt %d/%d.", attempt, max_attempts)
                     break
+                logger.info("Rejected non-novel question on attempt %d/%d.", attempt, max_attempts)
                 novelty_rejections += 1
                 generated = None
 
             if generated is None:
+                logger.warning("Failed to generate a novel question for bucket after %d attempts.", max_attempts)
                 failed_items += 1
                 continue
 
@@ -157,6 +174,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
                 expected_verdict=expected_verdict,
                 source_quote=str(generated.get("source_quote", "")),
             )
+            logger.info("Evaluation score: %.3f", float(evaluation.get("score", 0.0)))
 
             record = {
                 "id": str(uuid.uuid4()),
@@ -191,6 +209,14 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         for record in batch_records:
             policy.update(record)
             record["ema_score"] = policy.global_ema
+        logger.info(
+            "Round %d complete. Accepted=%d, Failed=%d, Novelty rejects=%d, EMA=%.3f",
+            round_number,
+            len(batch_records),
+            failed_items,
+            novelty_rejections,
+            policy.global_ema if policy.global_ema is not None else 0.0,
+        )
 
     summary = build_summary(
         run_id=run_id,
@@ -202,6 +228,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
         current_ema=policy.global_ema,
     )
     run_store.append(summary)
+    logger.info("Run complete. Summary written to store.")
     return summary
 
 
@@ -214,6 +241,7 @@ def build_summary(
     total_rounds: int,
     current_ema: float | None,
 ) -> dict[str, Any]:
+    """Aggregate run records into a summary metrics dictionary."""
     if not records:
         return {
             "run_id": run_id,
@@ -252,6 +280,13 @@ def build_summary(
 
 
 def main() -> None:
+    """CLI entrypoint for running the benchmark generator."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(description="Self-evolving benchmark generator")
     parser.add_argument("--config", default="configs/default.yaml", help="Path to YAML config")
     args = parser.parse_args()

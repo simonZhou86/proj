@@ -1,10 +1,12 @@
 from typing import Any
+from textwrap import dedent
 
 from .llm_client import OpenAICompatibleClient
 
 
 class AnswerEvaluator:
     def __init__(self, client: OpenAICompatibleClient) -> None:
+        """Initialize the evaluator with an LLM client."""
         self.client = client
 
     def evaluate(
@@ -17,6 +19,17 @@ class AnswerEvaluator:
         expected_verdict: str = "NA",
         source_quote: str = "",
     ) -> dict[str, Any]:
+        '''
+        Evaluate a model answer against ground truth and context.
+        Args:
+            question: The question being evaluated.
+            gold_answer: The ground truth answer for the question.
+            predicted_answer: The answer from answerer agent to evaluate.
+            contexts: source chuncks, a list of dicts, each with keys 'source_id', 'chunk_id', 'title', 'text'.
+            task_type: The type of task (e.g., "extractive_qa", "claim_quality_check") to inform evaluation criteria.
+            expected_verdict: Only for claim_quality_check, the expected claim verdict label (FAITHFUL, HALLUCINATED, NOT_MENTIONED).
+            source_quote: The specific quote or citation/reference from the generator that supports the ground truth answer.
+        '''
         context_text = "\n\n".join(
             [
                 (
@@ -27,25 +40,44 @@ class AnswerEvaluator:
             ]
         )
         result = self.client.chat_json(
-            system_prompt=(
-                "You are a strict judger that evaluate how accurate is the answer given question based on the source content provided to you. "
-                "You will receive a task type, question, ground truth answer, candidate answer, candiadte citation, a optional claim verdict if the task type is claim_quality_check, and the original context."
-                "Return JSON with keys: score, is_correct, feedback, error_type, quality_flags, ambiguity_note, claim_verdict_match. "
-                "score must be in [0,1]."
-                "You must return a valid json so that it can be directly loaded by json.loads() in Python."
+            system_prompt=dedent(
+                """\
+                Your role: You are a strict judge that evaluates how accurate is the answer against provided source content.
+                Your task: Judge the candidate answer relative to the question, ground truth answer, and context, focusing on factual correctness, completeness, and reasoning quality.
+                Rules/constraints: Use only the provided context. Your output score must be in [0,1]. If task_type is *claim_quality_check*, prioritize verdict correctness and evidence grounding. Allowed claim verdict labels: FAITHFUL, HALLUCINATED, NOT_MENTIONED. If the question or ground truth answer is ambiguous, note it in ambiguity_note and reflect it in quality_flags. Avoid speculation and do not reference any external sources.
+                Output format: Valid JSON parseable by json.loads() with keys: score, is_correct, feedback, error_type, quality_flags, ambiguity_note, claim_verdict_match.
+                """
             ),
-            user_prompt=(
-                f"Task type:\n{task_type}\n\n"
-                f"Question:\n{question}\n\n"
-                f"Gold answer:\n{gold_answer}\n\n"
-                f"Candidate answer:\n{predicted_answer}\n\n"
-                f"Expected claim verdict (if claim_quality_check):\n{expected_verdict}\n\n"
-                f"Generator source quote:\n{source_quote}\n\n"
-                f"Source context:\n{context_text}\n\n"
-                "Evaluate factual correctness and reasoning quality.\n"
-                "If task_type is claim_quality_check, prioritize verdict correctness and evidence grounding.\n"
-                "Allowed claim verdict labels are FAITHFUL, HALLUCINATED, NOT_MENTIONED.\n"
-                "quality_flags is a list of zero or more from: ambiguous_question, weak_gold, unsupported_by_context."
+            user_prompt=dedent(
+                f"""\
+                Please evaluate the following inputs.
+
+                Task type:
+                {task_type}
+
+                Question:
+                {question}
+
+                Ground truth answer:
+                {gold_answer}
+
+                Candidate answer:
+                {predicted_answer}
+
+                Expected claim verdict (if claim_quality_check):
+                {expected_verdict}
+
+                Generator source quote:
+                {source_quote}
+
+                Source context:
+                {context_text}
+
+                Notes:
+                Evaluate factual correctness and reasoning quality.
+                If task_type is claim_quality_check, prioritize verdict correctness and evidence grounding.
+                quality_flags is a list of zero or more from: ambiguous_question, weak_gold, unsupported_by_context.
+                """
             ),
             temperature=0.0,
         )
