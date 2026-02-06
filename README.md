@@ -1,37 +1,40 @@
-# Self-Evolving Benchmark Generator
+# Self-Evolving Question Generator
 
-This project implements a self-evolving benchmark generator where **one OpenAI-compatible endpoint** is used for:
+This project implements a self-evolving question generator for:
 - question generation
-- model answering
+- question answering
 - answer evaluation
 
-It is designed for practical benchmarking over time. This version assumes life-science or medical source text.
+It is designed for practical benchmarking over time. This version based on life-sciences or medical-related source documents.
 
-## Why this version is useful
+## What does the current pipeline do?
 
 - Questions are grounded in one or more local articles (`data/context/*.md|*.txt`) instead of generating from scratch.
-- Each new item is checked for novelty (lexical + LLM judge).
-- The curriculum evolves toward weak areas (reasoning/difficulty/task-type buckets with EMA-driven sampling).
-- Low-quality items are flagged (`ambiguous_question`, `weak_gold`, `unsupported_by_context`).
-- Built-in task types: `extractive_qa`, `abstractive_qa`, `claim_quality_check` (faithfulness/hallucination).
+- Each new question is checked for novelty using a hybrid approach (char-level lexical + LLM as a judge).
+- The system evolves toward weak areas (reasoning/difficulty/task-type buckets) with EMA-driven + epsilon-greedy sampling.
+- Low-quality questions are flagged (`ambiguous_question`, `weak_gold`, `unsupported_by_context`).
+- Three task types are designed: `extractive_qa`, `abstractive_qa`, `claim_quality_check for (faithfulness/hallucination)`.
 - Difficulty is prompt-controlled with levels `1/3/5` and task-specific generation rules.
 - Run summaries include metrics for model comparison over time.
 
 ## Architecture
 
-Loop per round:
-1. Sample target profile (reasoning type, difficulty, task type) from policy.
-2. Sample source chunks from provided articles.
-3. Generate a question + ground truth answer grounded in source.
-4. Reject duplicates via novelty checks.
-5. Answer with the same endpoint.
-6. Evaluate with the same endpoint.
-7. Update EMA and bucket EMAs, then adapt future sampling.
+For first two rounds we do exploration:
+1. Generate questions for the difficulty=1 buckets (easier) to build initial data and EMAs based on the chunks from the docs.
+2. Then generate questions for the difficulty=3 buckets (medium) to add more challenge based on the chunks from the docs.
+
+For round 3 onward we do exploration + exploitation:
+1. Sample target buckets (reasoning type, difficulty, task type) from policy.
+2. Generate a question + ground truth answer grounded in source.
+3. Check novelty and accept new questions and reject duplicates
+4. Answer with the same model.
+5. Evaluate using LLM as a judge approach.
+6. Update EMA and bucket EMAs, then adapt future sampling.
 
 Batching:
-- Each round selects 12 buckets (task_type × reasoning_type × difficulty).
+- Each round selects 12 buckets (task_type × reasoning_type × difficulty). Can be defined in the config.
 - Round 1 focuses on difficulty=1 buckets, round 2 focuses on difficulty=3 buckets.
-- From round 3 onward, buckets are sampled by EMA with a difficulty prior.
+- From round 3 onward, buckets are sampled by EMA with a difficulty prior + epsilon greedy approach.
 
 ## EMA scoring
 
@@ -59,7 +62,7 @@ Run:
 python -m src.main --config configs/default.yaml
 ```
 
-## Config knobs
+## Configs
 
 Main controls in `configs/default.yaml`:
 - `context.context_dir`: folder of source articles (`.md`, `.txt`)

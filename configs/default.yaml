@@ -1,9 +1,9 @@
 endpoint:
   base_url: "https://api.openai.com/v1"
-  api_key: ""
+  api_key: "OPENOAI_API_KEY"
   model: "gpt-3.5-turbo"
   temperature: 0.2
-  max_tokens: 900
+  max_tokens: 1000
 
 context:
   context_dir: "data/context"

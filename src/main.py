@@ -41,7 +41,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             base_url=endpoint["base_url"],
             api_key=endpoint.get("api_key", ""),
             model=endpoint["model"],
-            temperature=float(endpoint.get("temperature", 0.2)),
+            temperature=float(endpoint.get("temperature", 0.)),
             max_tokens=int(endpoint.get("max_tokens", 800)),
         )
     )
