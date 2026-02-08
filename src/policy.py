@@ -41,7 +41,7 @@ class CurriculumPolicy:
         self.epsilon = epsilon
         self.random = random.Random(seed)
         # a global ema to track overall performance
-        self.global_ema: float | None = None
+        self.global_ema: float = 0.5
         # separate EMAs for each dimension to identify weaknesses
         self.bucket_ema: dict[str, dict[str, float]] = {
             "reasoning_type": defaultdict(lambda: 0.5),
