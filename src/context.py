@@ -92,7 +92,7 @@ def _chunk_text(text: str, max_chars: int) -> list[str]:
 
 def _naive_chunk_text(text: str, max_chars: int) -> list[str]:
         '''
-        chunk text into pieces of max_chars with overlap, trying to split on sentence boundaries to avoid cut-in word and
+        chunk text into pieces of max_chars with overlap, trying to split on sentence boundaries to avoid cut-in words and
         lose semantic coherence.
 
         can be improved by using langchain
