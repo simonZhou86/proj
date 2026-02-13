@@ -6,7 +6,9 @@ from .llm_client import OpenAICompatibleClient
 
 class AnswerEvaluator:
     def __init__(self, client: OpenAICompatibleClient) -> None:
-        """Initialize the evaluator with an LLM client."""
+        '''
+        Initialize the evaluator with an LLM client.
+        '''
         self.client = client
 
     def evaluate(
