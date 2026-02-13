@@ -5,7 +5,9 @@ from .llm_client import OpenAICompatibleClient
 
 class QuestionAnswerer:
     def __init__(self, client: OpenAICompatibleClient) -> None:
-        """Initialize the answerer with an LLM client."""
+        '''
+        Initialize the answerer with an LLM client.
+        '''
         self.client = client
 
     def answer(self, question: str, contexts: list[dict[str, str]], task_type: str = "") -> str:
