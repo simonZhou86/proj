@@ -28,7 +28,9 @@ class ContextLibrary:
 
     @classmethod
     def from_dir(cls, context_dir: str, max_chars_per_chunk: int = 1800, seed: int | None = None) -> "ContextLibrary":
-        """Load documents from a directory and build a chunked context library."""
+        '''
+        Load documents from a directory and build a chunked context library.
+        '''
         root = Path(context_dir)
         if not root.exists():
             raise ValueError(f"context_dir does not exist: {context_dir}")
@@ -52,7 +54,6 @@ class ContextLibrary:
         '''
         we can also select random chunks
         '''
-        """Return all chunks for a sampled set of documents."""
         selected_docs = self.docs if n_docs >= len(self.docs) else self.random.sample(self.docs, k=n_docs)
         contexts: list[dict[str, str]] = []
         for doc in selected_docs:
